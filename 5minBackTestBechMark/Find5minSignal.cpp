@@ -12,6 +12,11 @@ Params
 	string prev1HrHighTableName("Prev1HrHigh");
 	string prev1HrLowTableName("Prev1HrLow");
 	string triggerPriceTableName("TriggerPrice");
+	
+	Numeric FastLength(12);
+	Numeric SlowLength(26);
+	Numeric MACDLength(9);
+	Numeric TrendLength(60);
 
 Vars	
 	//********Timestamp***********//
@@ -34,6 +39,14 @@ Vars
 	Numeric oneHrLow;
 	Numeric prevOneHrHigh;
 	Numeric prevOneHrLow;
+	//***********Indicators and Filters***********************//
+	NumericSeries DIF; 
+	Numeric DEA;
+	Numeric MACD;
+	NumericSeries DIFMain;
+	NumericSeries DEAMain;
+	NumericSeries MidLine;
+	NumericSeries MA60;
 Begin
 	//**********TimeStamp*****************//
 	timeModifier = GetTimeModifier(signalPeriod);
@@ -51,39 +64,18 @@ Begin
 	//***********Signal Searching***********//
 	if (signalRaw[1] > 0 && timestamp <> timestamp[1])
 	{
-		// Future function
-		if (oneHrLow < prevOneHrLow)
-		{
-			onCall = 0;
-			triggerOnCall = 0;
-			abortOnCall = 0;
-			expired = True;
-		}
-		else
-		{
-			onCall = signalRaw[1];
-			triggerOnCall = prevOneHrHigh;
-			abortOnCall = prevOneHrLow;
-			expired = False;
-		}
+		onCall = signalRaw[1];
+		triggerOnCall = prevOneHrHigh;
+		abortOnCall = prevOneHrLow;
+		expired = False;
 	}
 	else if (signalRaw[1] < 0 && timestamp <> timestamp[1])
 	{
-		// Future function
-		if (oneHrHigh > prevOneHrHigh)
-		{
-			onCall = 0;
-			triggerOnCall = 0;
-			abortOnCall = 0;
-			expired = True;
-		}
-		else
-		{
-			onCall = signalRaw[1];
-			triggerOnCall = prevOneHrLow;
-			abortOnCall = prevOneHrHigh;
-			expired = False;
-		}
+
+		onCall = signalRaw[1];
+		triggerOnCall = prevOneHrLow;
+		abortOnCall = prevOneHrHigh;
+		expired = False;
 	}
 	else if (signalRaw[1] == 0 && timestamp <> timestamp[1])
 	{
@@ -117,7 +109,58 @@ Begin
 		signal = 0;
 	}
 	
-	//*****************Save trigger and abort price to DB*********************//
+	
+	//**************************************************5 Min filter goes in here***************************************//
+	// Calculate Indicators
+	DIF = XAverage( Close, FastLength ) - XAverage( Close, SlowLength ) ;	
+	DEA = XAverage(DIF, MACDLength);
+	MACD = DIF - DEA;
+	
+	
+	DIFMain = MA60 + DIF * 3.9;
+	DEAMain = XAverage(DIFMain, MACDLength);
+	MidLine = XAverage(XAverage(C,10),10);
+	MA60 = XAverage(Close, 60);
+
+	PlotNumeric("DIF", DIFMain);
+	PlotNumeric("DEA", DEAMain);
+	PlotNumeric("Mid", MidLine);
+	PlotNumeric("MA60", MA60);
+	
+	// Direction of MA60 should be the same with signal direction
+	if ((signal == 1 && MA60 < MA60[1]) || (signal == -1 && MA60 > MA60[1]))
+	{
+		signal = 0;
+	}
+	// Direction of Mid line should be the same with signal direction
+	if ((signal == 1 && MidLine < MidLine[1]) || (signal == -1 && MidLine > MidLine[1]))
+	{
+		signal = 0;
+	}
+	// Direction of DEA should be consistent with signal direction
+/*	if ((signal == 1 && MACD < 0) || (signal == -1 && MACD > 0))
+	{
+		signal = 0;
+	}*/
+
+	// DEA should be above 0 axis
+/*	if ((signal == 1 && DEAMain < MA60) || (signal == -1 && DEAMain > MA60))
+	{
+		signal = 0;
+	}*/
+
+	
+	// If it hits the abort price, abort this signal
+/*	if (onCall > 0 && Low < abortOnCall && !expired)
+	{
+		expired = True;
+	}
+	else if (onCall < 0 && High > abortOnCall && !expired)
+	{
+		expired = True;
+	}*/
+	
+	//*****************Save trigger price to DB*********************//
 	strKey = DateTimeToString(Date + Time);
 	SetTBProfileString(triggerPriceTableName, strKey, Text(triggerPrice));
 	
