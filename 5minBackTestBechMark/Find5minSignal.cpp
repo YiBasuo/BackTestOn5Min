@@ -47,6 +47,8 @@ Vars
 	NumericSeries DEAMain;
 	NumericSeries MidLine;
 	NumericSeries MA60;
+	
+	//***********Gap Filter**********************//
 Begin
 	//**********TimeStamp*****************//
 	timeModifier = GetTimeModifier(signalPeriod);
@@ -137,28 +139,12 @@ Begin
 	{
 		signal = 0;
 	}
-	// Direction of DEA should be consistent with signal direction
-/*	if ((signal == 1 && MACD < 0) || (signal == -1 && MACD > 0))
-	{
-		signal = 0;
-	}*/
-
-	// DEA should be above 0 axis
-/*	if ((signal == 1 && DEAMain < MA60) || (signal == -1 && DEAMain > MA60))
-	{
-		signal = 0;
-	}*/
-
 	
-	// If it hits the abort price, abort this signal
-/*	if (onCall > 0 && Low < abortOnCall && !expired)
+	//*************************************************Gap adjustment****************************************************//
+	if ((signal == 1 && Open > prevOneHrHigh) || (signal == -1 && Open < prevOneHrLow))
 	{
-		expired = True;
+		triggerPrice = Open;
 	}
-	else if (onCall < 0 && High > abortOnCall && !expired)
-	{
-		expired = True;
-	}*/
 	
 	//*****************Save trigger price to DB*********************//
 	strKey = DateTimeToString(Date + Time);
