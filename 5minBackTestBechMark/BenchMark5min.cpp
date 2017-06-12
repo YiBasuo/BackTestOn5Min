@@ -48,26 +48,12 @@ Begin
 	//******************* Operate **********************************************************//
 	if (signal > 0)
 	{
-		if (Open > triggerPrice)
-		{
-			Buy(Lots, Open);
-		}
-		else
-		{
-			Buy(Lots, triggerPrice);
-		}
+		Buy(Lots, triggerPrice);
 	}
 	
 	if (signal < 0)
 	{
-		if (Open < triggerPrice)
-		{
-			SellShort(Lots, Open);
-		}
-		else
-		{
-			SellShort(Lots, triggerPrice);
-		}
+		SellShort(Lots, triggerPrice);
 	}
 	
 	//****************** Holding Strategy *************************************************//
