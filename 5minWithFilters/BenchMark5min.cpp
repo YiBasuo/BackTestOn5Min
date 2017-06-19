@@ -11,7 +11,21 @@ Params
 	string signalPeriod("1HrSignal");
 	string triggerPriceTableName("TriggerPrice");
 	
+	Numeric FastLength(12);
+	Numeric SlowLength(26);
+	Numeric MACDLength(9);
+	Numeric TrendLength(60);
+	
 Vars
+	//***********Indicators***********************//
+	NumericSeries DIF; 
+	Numeric DEA;
+	Numeric MACD;
+	NumericSeries DIFMain;
+	NumericSeries DEAMain;
+	NumericSeries MidLine;
+	NumericSeries MA60;
+	
 	//**************Signal*****************//
 	Numeric timeModifier(0);
 	string strKey;
@@ -29,6 +43,11 @@ Vars
 	Numeric Lots(1);	
 	Numeric prevOneHrHigh;
 	Numeric prevOneHrLow;
+	
+	NumericSeries stopLoss;
+	Numeric pressure;
+	Numeric support;
+	Numeric entryTimestamp;
 Begin
 	//***************************** Pre-Compute signal on long period *************************//
 	// Method Application PreComputeSignal has to be callled upon a #signalPeriod# chart, before this one is loaeded on 5MinSignal
@@ -46,23 +65,90 @@ Begin
 	triggerPrice = ReadValueFromDB(triggerPriceTableName, strKey);
 	
 	//******************* Operate **********************************************************//
+	timeModifier = GetTimeModifier(signalPeriod);
+	timestamp = Date + TimeModifier;
+	
+	strKey = DateTimeToString(timestamp);	
+	prevOneHrHigh = ReadValueFromDB(prev1HrHighTableName, strKey);
+	prevOneHrLow = ReadValueFromDB(prev1HrLowTableName, strKey);
+
+	pressure = GetNearestPeak("pressure");
+	support = GetNearestPeak("support");
+	
 	if (signal > 0)
 	{
-		Buy(Lots, triggerPrice);
+		if (time == 0.1455 || Date <> Date[-1])
+		{
+		}
+		else 
+		{
+			Buy(Lots, triggerPrice);
+		}
 	}
 	
 	if (signal < 0)
 	{
-		SellShort(Lots, triggerPrice);
+		if (time == 0.1455 || Date <> Date[-1])
+		{
+		}
+		else 
+		{
+			SellShort(Lots, triggerPrice);
+		}
 	}
 	
-	//****************** Holding Strategy *************************************************//
-	timeModifier = GetTimeModifier(signalPeriod);
-	timestamp = Date + TimeModifier;
-
-	strKey = DateTimeToString(timestamp);	
-	prevOneHrHigh = ReadValueFromDB(prev1HrHighTableName, strKey);
-	prevOneHrLow = ReadValueFromDB(prev1HrLowTableName, strKey);
+	// No losing overnight positions
+	
+	// Calculate Indicators
+	DIF = XAverage( Close, FastLength ) - XAverage( Close, SlowLength ) ;	
+	DEA = XAverage(DIF, MACDLength);
+	MACD = DIF - DEA;
+	
+	
+	DIFMain = MA60 + DIF * 3.9;
+	DEAMain = XAverage(DIFMain, MACDLength);
+	MidLine = XAverage(XAverage(C,10),10);
+	MA60 = XAverage(Close, 60);
+	if (MarketPosition == 1 && time == 0.1455 && Close <= EntryPrice)
+	{
+		if (MA60 > MA60[1] && MidLine > MidLine[1] && DEAMain > DEAMain[1] && DEAMain > MidLine && MidLine > MA60)
+		{
+		}
+		else 
+		{
+			Sell(Lots, Close);
+		}
+	}
+	if (MarketPosition == -1 && time == 0.1455 && Close >= EntryPrice)
+	{
+		if (MA60 < MA60[1] && MidLine < MidLine[1] && DEAMain < DEAMain[1] && DEAMain < MidLine && MidLine < MA60)
+		{
+		}
+		else 
+		{
+			BuyToCover(Lots, Close);
+		}
+	}
+	if (MarketPosition == 1 && Date <> Date[-1] && Close <= EntryPrice)
+	{
+		if (MA60 > MA60[1] && MidLine > MidLine[1] && DEAMain > DEAMain[1] && DEAMain > MidLine && MidLine > MA60)
+		{
+		}
+		else 
+		{
+			Sell(Lots, Close);
+		}
+	}
+	if (MarketPosition == -1 && Date <> Date[-1] && Close >= EntryPrice)
+	{
+		if (MA60 < MA60[1] && MidLine < MidLine[1] && DEAMain < DEAMain[1] && DEAMain < MidLine && MidLine < MA60)
+		{
+		}
+		else 
+		{
+			BuyToCover(Lots, Close);
+		}
+	}
 	
 	if (Low < prevOneHrLow And MarketPosition == 1)
 	{
@@ -74,6 +160,66 @@ Begin
 		BuyToCover(Lots, prevOneHrHigh);
 	}
 
+	
+/*	if (signal > 0)
+	{
+		Buy(Lots, triggerPrice);
+		
+		stopLoss = Max(support, prevOneHrLow);
+		entryTimestamp = timestamp;
+	}
+	
+	if (signal < 0)
+	{
+		SellShort(Lots, triggerPrice);
+		
+		stopLoss = Min(pressure, prevOneHrHigh);
+		entryTimestamp = timestamp;
+	}*/
+	
+	//****************** Holding Strategy *************************************************//	
+/*	if (timestamp == entryTimestamp)
+	{
+		if (signal == 0)
+		{
+			stopLoss = stopLoss[1];
+		}
+	}
+	else if (timestamp <> timestamp[1] && timestamp == entryTimestamp)
+	{
+		stopLoss = stopLoss[1];
+	}
+	else if (timestamp <> timestamp[1] && timestamp <> entryTimestamp)
+	{
+		if (MarketPosition == 1)
+		{
+			stopLoss = prevOneHrLow;
+		}
+		else if (MarketPosition == -1)
+		{
+			stopLoss = prevOneHrHigh;
+		}
+		else 
+		{
+			stopLoss = 0;
+		}
+	}
+	else 
+	{
+		stopLoss = stopLoss[1];
+	}
+	
+	PlotString("sl", Text(stopLoss), Low - 25);
+	
+	if (Low < stopLoss And MarketPosition == 1)
+	{
+		Sell(Lots, stopLoss);
+	}
+	
+	if (High > stopLoss And MarketPosition == -1)
+	{
+		BuyToCover(Lots, stopLoss);
+	}*/
 End
 
 //------------------------------------------------------------------------
