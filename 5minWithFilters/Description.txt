@@ -1,0 +1,12 @@
+This Folder Contains 7 Files:
+
+Method:
+	PreComputeSignal: Mark all signal on the chart, and save the signal along with previous K bar info to database. Load this to 1 Hr/Day chart before the rest.
+	BenchMarkOneHour: Operate according to the signals in DB. This verify the DB operation is correct. The result is tested to be the same as OneHourBasic test.
+	BenchMark5min: Operate on 5min according to the signals from 1 Hr in DB. The result is different from BenchMarkOneHour for open and close jump. This will be a benchmark for further testing.
+
+Function:
+	ReadValueFromDB
+	GetTimeModifier
+	ReadSignalTo5minChart
+	Find5minSignal
