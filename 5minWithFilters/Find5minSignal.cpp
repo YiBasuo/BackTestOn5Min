@@ -94,18 +94,32 @@ Begin
 		expired = expired[1];
 	}
 		
+	// Enter
 	if (onCall > 0 && High > triggerOnCall && !expired)
 	{
 		signal = 1;
 		triggerPrice = triggerOnCall; 
 		expired = True;
 	}
+	// Abort
+/*	else if (onCall > 0 && Low < abortOnCall && !expired)
+	{
+		expired = True;
+		signal = 0;
+	}*/
+	// Enter
 	else if (onCall < 0 && Low < triggerOnCall && !expired)
 	{
 		signal = -1;
 		triggerPrice = triggerOnCall;
 		expired = True;
 	}
+	// Abort
+/*	else if (onCall < 0 && High > triggerOnCall && !expired)
+	{
+		expired = True;
+		signal = 0;
+	}*/
 	else
 	{
 		signal = 0;
@@ -138,7 +152,7 @@ Begin
 	if ((signal == 1 && MidLine < MidLine[1]) || (signal == -1 && MidLine > MidLine[1]))
 	{
 		signal = 0;
-	}
+	}/* */
 	
 	//*************************************************Gap adjustment****************************************************//
 	if ((signal == 1 && Open > prevOneHrHigh) || (signal == -1 && Open < prevOneHrLow))
