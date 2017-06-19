@@ -17,6 +17,8 @@ Params
 	Numeric SlowLength(26);
 	Numeric MACDLength(9);
 	Numeric TrendLength(60);
+	
+	Numeric ShortTermHoldingThreshold(100);
 
 Vars	
 	//********Timestamp***********//
@@ -41,12 +43,22 @@ Vars
 	Numeric prevOneHrLow;
 	//***********Indicators and Filters***********************//
 	NumericSeries DIF; 
-	Numeric DEA;
-	Numeric MACD;
+	NumericSeries DEA;
+	NumericSeries MACD;
 	NumericSeries DIFMain;
 	NumericSeries DEAMain;
 	NumericSeries MidLine;
 	NumericSeries MA60;
+	
+	//***********Filter Out Short-term Opportunities**********//
+	Numeric i;// iterator;
+	Numeric startingPoint;
+	Numeric pressure;
+	Numeric support;
+	
+	Numeric prevDivergentExtremeIndex;
+	Numeric prevDivergentExtremeHigh;
+	Numeric prevDivergentExtremeLow;
 	
 	//***********Gap Filter**********************//
 Begin
@@ -94,23 +106,36 @@ Begin
 		expired = expired[1];
 	}
 		
+	// Enter
 	if (onCall > 0 && High > triggerOnCall && !expired)
 	{
 		signal = 1;
 		triggerPrice = triggerOnCall; 
 		expired = True;
 	}
+	// Abort
+/*	else if (onCall > 0 && Low < abortOnCall && !expired)
+	{
+		expired = True;
+		signal = 0;
+	}*/
+	// Enter
 	else if (onCall < 0 && Low < triggerOnCall && !expired)
 	{
 		signal = -1;
 		triggerPrice = triggerOnCall;
 		expired = True;
 	}
+	// Abort
+/*	else if (onCall < 0 && High > triggerOnCall && !expired)
+	{
+		expired = True;
+		signal = 0;
+	}*/
 	else
 	{
 		signal = 0;
-	}
-	
+	}	
 	
 	//**************************************************5 Min filter goes in here***************************************//
 	// Calculate Indicators
@@ -138,7 +163,77 @@ Begin
 	if ((signal == 1 && MidLine < MidLine[1]) || (signal == -1 && MidLine > MidLine[1]))
 	{
 		signal = 0;
+	}/* */
+	
+	//*************************************************Filter Out Short-term Oppotunities*************************************//
+	for i = 0 to 200:
+	{
+		if (signal > 0 && Low[i] < MA60[i])
+		{
+			startingPoint = i;
+			break;
+		}
+		
+		if (signal < 0 && High[i] > MA60[i])
+		{
+			startingPoint = i;
+			break;
+		}
 	}
+	
+	// If price has already moved greatly towards the signal direction, then do not operate on it.
+	if ((signal > 0 && Low - Low[startingPoint] > ShortTermHoldingThreshold) || (signal < 0 && High[startingPoint] - High > ShortTermHoldingThreshold))
+	{
+		signal = 0;
+	}
+	else
+	{
+		signal = signal;
+	}
+	
+	// If the signal is triggered immediately on 5min chart, then it might possibly end up loss.
+	/*	pressure = GetNearestPeak("pressure");
+	support = GetNearestPeak("support");
+	
+	if (signal <> 0 && timestamp <> timestamp[1])
+	{
+		if (signal > 0 && Low[1] - support < 20)
+		{
+			signal = 0;
+		}
+		else if (signal < 0 && pressure - High[1] < 20)
+		{
+			signal = 0;
+		}
+		else
+		{
+			signal = signal;
+		}
+		PlotString("p", Text(pressure), High + 25);
+		PlotString("s", Text(support), Low - 25);
+		signal = 0;
+	}
+	else
+	{
+		signal = signal;
+	}*/
+	
+	// Filter: derivative of MACD should be the same direction as signal
+	if (signal > 0 && MACD < MACD[1])
+	{
+		signal = 0;
+	}
+	else if (signal < 0 && MACD > MACD[1])
+	{
+		signal = 0;
+	}
+	else
+	{
+		signal = signal;
+	}
+	
+	// Filter: strong divergent signal:
+	
 	
 	//*************************************************Gap adjustment****************************************************//
 	if ((signal == 1 && Open > prevOneHrHigh) || (signal == -1 && Open < prevOneHrLow))
