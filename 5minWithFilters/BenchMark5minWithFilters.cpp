@@ -11,7 +11,21 @@ Params
 	string signalPeriod("1HrSignal");
 	string triggerPriceTableName("TriggerPrice");
 	
+	Numeric FastLength(12);
+	Numeric SlowLength(26);
+	Numeric MACDLength(9);
+	Numeric TrendLength(60);
+	
 Vars
+	//***********Indicators***********************//
+	NumericSeries DIF; 
+	Numeric DEA;
+	Numeric MACD;
+	NumericSeries DIFMain;
+	NumericSeries DEAMain;
+	NumericSeries MidLine;
+	NumericSeries MA60;
+	
 	//**************Signal*****************//
 	Numeric timeModifier(0);
 	string strKey;
@@ -29,6 +43,11 @@ Vars
 	Numeric Lots(1);	
 	Numeric prevOneHrHigh;
 	Numeric prevOneHrLow;
+	
+	NumericSeries stopLoss;
+	Numeric pressure;
+	Numeric support;
+	Numeric entryTimestamp;
 Begin
 	//***************************** Pre-Compute signal on long period *************************//
 	// Method Application PreComputeSignal has to be callled upon a #signalPeriod# chart, before this one is loaeded on 5MinSignal
@@ -39,13 +58,23 @@ Begin
 	signalRaw = ReadSignalTo5minChart(signalPeriod);
 	
 	// This function will return all the 5min bars to operate on, and save the trigger price to table
-	signal = Find5minSignal(signalRaw);
+	signal = Find5minSignalWithFilters(signalRaw);
 	
 	// Read trigger price from DB
 	strKey = DateTimeToString(Date + Time);
 	triggerPrice = ReadValueFromDB(triggerPriceTableName, strKey);
 	
 	//******************* Operate **********************************************************//
+	timeModifier = GetTimeModifier(signalPeriod);
+	timestamp = Date + TimeModifier;
+	
+	strKey = DateTimeToString(timestamp);	
+	prevOneHrHigh = ReadValueFromDB(prev1HrHighTableName, strKey);
+	prevOneHrLow = ReadValueFromDB(prev1HrLowTableName, strKey);
+
+	pressure = GetNearestPeak("pressure");
+	support = GetNearestPeak("support");
+	
 	if (signal > 0)
 	{
 		Buy(Lots, triggerPrice);
@@ -56,24 +85,26 @@ Begin
 		SellShort(Lots, triggerPrice);
 	}
 	
-	//****************** Holding Strategy *************************************************//
-	timeModifier = GetTimeModifier(signalPeriod);
-	timestamp = Date + TimeModifier;
-
-	strKey = DateTimeToString(timestamp);	
-	prevOneHrHigh = ReadValueFromDB(prev1HrHighTableName, strKey);
-	prevOneHrLow = ReadValueFromDB(prev1HrLowTableName, strKey);
+	// Calculate Indicators
+	DIF = XAverage( Close, FastLength ) - XAverage( Close, SlowLength ) ;	
+	DEA = XAverage(DIF, MACDLength);
+	MACD = DIF - DEA;
 	
-	if (Low < prevOneHrLow And MarketPosition == 1)
+	
+	DIFMain = MA60 + DIF * 3.9;
+	DEAMain = XAverage(DIFMain, MACDLength);
+	MidLine = XAverage(XAverage(C,10),10);
+	MA60 = XAverage(Close, 60);
+	
+	if (Low < prevOneHrLow && MarketPosition == 1)
 	{
 		Sell(Lots, prevOneHrLow);
 	}
 	
-	if (High > prevOneHrHigh And MarketPosition == -1)
+	if (High > prevOneHrHigh && MarketPosition == -1)
 	{
 		BuyToCover(Lots, prevOneHrHigh);
 	}
-
 End
 
 //------------------------------------------------------------------------
